@@ -88,22 +88,32 @@ mkdir data
 ```bash
 docker compose up -d
 ```
+**What this does:** Downloads RustDesk server images and starts two containers:
+- `hbbs` - The signaling server that helps devices find each other
+- `hbbr` - The relay server that handles data transfer when direct connection fails
+- The `-d` flag runs containers in the background (detached mode)
 
 ### Verify containers are running:
 ```bash
 docker compose ps
 ```
+**What to expect:** You should see both containers with "Up" status and port mappings displayed
 
 ### Check logs:
 ```bash
 docker compose logs
 ```
+**What this shows:** Server startup messages, connection attempts, and any errors. Look for:
+- "Key: [your-server-key]" - Your unique server encryption key
+- "Listening on tcp/udp :21116" - Main server is ready
+- "Listening on tcp :21117" - Relay server is ready
 
 ### Test local connectivity:
 ```bash
 nc -zv localhost 21116
 nc -zv localhost 21117
 ```
+**What this tests:** Whether the server ports are accessible locally. You should see "succeeded!" for both commands.
 
 ## 🔑 Step 4: Get Server Configuration
 
@@ -111,56 +121,89 @@ nc -zv localhost 21117
 ```bash
 cat data/id_ed25519.pub
 ```
+**What this is:** Your server's unique public key that clients need to connect securely. This key:
+- Ensures only authorized clients can connect to your server
+- Is automatically generated when the server first starts
+- Should be kept secure but can be shared with trusted users
 
 ### Find your local IP address:
 ```bash
 ifconfig | grep "inet " | grep -v 127.0.0.1
 ```
+**What this shows:** Your computer's IP address on your local network (usually starts with 192.168.x.x or 10.x.x.x). This is used for:
+- Connecting devices on the same WiFi/network
+- Setting up port forwarding rules in your router
+- Local testing and troubleshooting
 
 ### Find your public IP address:
 ```bash
 curl -s ifconfig.me
 ```
+**What this shows:** Your internet-facing IP address that external devices use to connect. This is:
+- Assigned by your Internet Service Provider (ISP)
+- What devices outside your network will connect to
+- May change periodically (dynamic IP) unless you have a static IP plan
 
 ## 🌐 Step 5: Configure Port Forwarding (For External Access)
 
+**Why this is needed:** Port forwarding tells your router to send incoming internet traffic on specific ports to your Mac running the RustDesk server. Without this, external devices can't reach your server.
+
 ### Access your router's admin panel:
 1. Open web browser and go to your router's IP (usually `192.168.1.1` or `192.168.0.1`)
-2. Log in with admin credentials
+2. Log in with admin credentials (often printed on router label)
+
+**Common router interfaces:** Look for sections named "Port Forwarding", "Virtual Server", "NAT Forwarding", or "Applications & Gaming"
 
 ### Add port forwarding rules:
-| Service Name | External Port | Internal IP | Internal Port | Protocol |
-|--------------|---------------|-------------|---------------|----------|
-| RustDesk-NAT | 21115 | [YOUR_LOCAL_IP] | 21115 | TCP |
-| RustDesk-Main | 21116 | [YOUR_LOCAL_IP] | 21116 | TCP/UDP |
-| RustDesk-Relay | 21117 | [YOUR_LOCAL_IP] | 21117 | TCP |
-| RustDesk-WS1 | 21118 | [YOUR_LOCAL_IP] | 21118 | TCP |
-| RustDesk-WS2 | 21119 | [YOUR_LOCAL_IP] | 21119 | TCP |
+| Service Name | External Port | Internal IP | Internal Port | Protocol | Purpose |
+|--------------|---------------|-------------|---------------|----------|---------|
+| RustDesk-NAT | 21115 | [YOUR_LOCAL_IP] | 21115 | TCP | NAT testing & diagnostics |
+| RustDesk-Main | 21116 | [YOUR_LOCAL_IP] | 21116 | TCP/UDP | Main signaling server |
+| RustDesk-Relay | 21117 | [YOUR_LOCAL_IP] | 21117 | TCP | Data relay for connections |
+| RustDesk-WS1 | 21118 | [YOUR_LOCAL_IP] | 21118 | TCP | WebSocket connections |
+| RustDesk-WS2 | 21119 | [YOUR_LOCAL_IP] | 21119 | TCP | WebSocket for relay |
 
-Replace `[YOUR_LOCAL_IP]` with your actual local IP address.
+**Important:** Replace `[YOUR_LOCAL_IP]` with your actual local IP address from Step 4.
+
+**Port explanations:**
+- **21115:** Used for network testing and diagnostics
+- **21116:** Main port where clients connect to find other devices
+- **21117:** Handles data transfer when direct connection isn't possible
+- **21118/21119:** Alternative connection methods for restrictive networks
 
 ### Test external connectivity:
 ```bash
 nc -zv [YOUR_PUBLIC_IP] 21116
 ```
+**What this tests:** Whether external devices can reach your server through the internet. Replace `[YOUR_PUBLIC_IP]` with your public IP from Step 4.
 
 ## 📱 Step 6: Configure RustDesk Clients
 
-### For Local Network Devices:
+### For Local Network Devices (Same WiFi):
 - **ID Server:** `[YOUR_LOCAL_IP]:21116`
-- **Relay Server:** `[YOUR_LOCAL_IP]:21117`
 - **Key:** `[YOUR_SERVER_KEY]`
 
 ### For Internet/External Devices:
 - **ID Server:** `[YOUR_PUBLIC_IP]:21116`
-- **Relay Server:** `[YOUR_PUBLIC_IP]:21117`
 - **Key:** `[YOUR_SERVER_KEY]`
+
+### For Mobile Devices (iPhone/Android) on Cellular Data:
+**Important:** Mobile networks often block standard RustDesk ports. Use WebSocket connection instead:
+- **ID Server:** `[YOUR_PUBLIC_IP]:21118`
+- **Key:** `[YOUR_SERVER_KEY]`
+
+**Why WebSocket works better for mobile:**
+- WebSocket traffic (port 21118) is treated as web traffic
+- Less likely to be blocked by mobile carriers
+- Better compatibility with mobile network restrictions
+- More reliable for cellular data connections
 
 ### Configuration Steps:
 1. Open RustDesk on the client device
 2. Go to Settings → Network
 3. Enter the appropriate server settings above
-4. Save and restart RustDesk
+4. **For mobile devices:** Try port 21116 first, if it fails use port 21118
+5. Save and restart RustDesk
 
 ## 🛠️ Management Commands
 
@@ -200,11 +243,20 @@ docker compose up -d
 4. Ensure Docker Desktop is running
 5. Verify containers are healthy: `docker compose ps`
 
+### Mobile devices can't connect (iPhone/Android on cellular):
+**Problem:** "Failed to connect to relay server" or connection timeouts on mobile data
+**Solution:** Use WebSocket port instead of standard port
+1. **Change ID Server to:** `[YOUR_PUBLIC_IP]:21118` (instead of :21116)
+2. **Keep the same key**
+3. **Why this works:** Mobile carriers often block high-numbered ports but allow WebSocket traffic
+4. **Alternative:** Use a VPN on your mobile device
+
 ### External connections not working:
 1. Verify port forwarding is configured correctly
 2. Check if ISP blocks the ports
 3. Test local connection first: `nc -zv localhost 21116`
 4. Ensure router firewall allows the ports
+5. **For mobile users:** Try WebSocket port 21118 if standard port 21116 fails
 
 ### Container startup issues:
 1. Check Docker Desktop is running
@@ -249,17 +301,21 @@ Here's how the configuration would look with example values:
 - **Server Key:** `ABCD1234567890abcdef1234567890ABCDEF1234567890abcdef=` (example)
 
 ### Client Settings Example:
-**Local Network:**
+**Local Network (Same WiFi):**
 - ID Server: `192.168.1.100:21116`
-- Relay Server: `192.168.1.100:21117`
 - Key: `ABCD1234567890abcdef1234567890ABCDEF1234567890abcdef=`
 
-**Internet Access:**
+**Internet Access (Desktop/Laptop):**
 - ID Server: `203.0.113.10:21116`
-- Relay Server: `203.0.113.10:21117`
+- Key: `ABCD1234567890abcdef1234567890ABCDEF1234567890abcdef=`
+
+**Mobile Devices (iPhone/Android on Cellular):**
+- ID Server: `203.0.113.10:21118` (WebSocket port)
 - Key: `ABCD1234567890abcdef1234567890ABCDEF1234567890abcdef=`
 
 > **Note:** Replace the example values above with your actual server IP addresses and key generated during setup.
+>
+> **Mobile Tip:** If port 21116 doesn't work on cellular data, always try port 21118 (WebSocket) which bypasses most mobile carrier restrictions.
 
 ## 🆘 Common Issues & Solutions
 
