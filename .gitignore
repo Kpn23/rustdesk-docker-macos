@@ -1,0 +1,72 @@
+# RustDesk Server Data - Contains sensitive keys and database
+data/
+
+# Docker volumes and persistent data
+volumes/
+
+# Environment files with sensitive configuration
+.env
+.env.local
+.env.production
+.env.staging
+
+# RustDesk server keys and certificates
+*.key
+*.pem
+*.crt
+id_ed25519*
+*.pub
+
+# Database files
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.db
+
+# Log files
+*.log
+logs/
+
+# Backup files
+*.backup
+*.bak
+backup/
+backups/
+
+# macOS system files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Docker related
+.docker/
+docker-compose.override.yml
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Configuration files that might contain sensitive data
+config.toml
+config.yaml
+config.json
+settings.json
+
+# Scripts with embedded credentials (if any)
+*_private.sh
+*_secret.sh
+
+# Any files ending with _local (for local overrides)
+*_local.*
